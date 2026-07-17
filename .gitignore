@@ -1,0 +1,26 @@
+# Lean / Lake build outputs and downloaded packages
+.lake/
+build/
+lake-packages/
+
+# Lean artifacts that should normally live under .lake/
+*.olean
+*.ilean
+*.trace
+
+# Local editor settings. Shared VS Code recommendations may still be committed.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Local secrets and machine-specific environment files
+.env
+.env.*
+!.env.example
