@@ -2,6 +2,7 @@
 .lake/
 build/
 lake-packages/
+lake-manifest.json
 
 # Lean artifacts that should normally live under .lake/
 *.olean
