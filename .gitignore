@@ -24,3 +24,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+
+# Generated Lake dependency manifest
+/lake-manifest.json
