@@ -448,44 +448,21 @@ theorem except_ok_fold (x : α) (m : α → @Except β α)
   rfl
 
 example : graphExampleM = .ok graphExample := by
-  have h1 : 1 ∉ (empty (ep := ep)).V := by
-    apply Finset.notMem_empty
-  have h2 : 2 ∉ (add_node 1 NodeDataLxy (empty (ep := ep))).V := by
-    unfold add_node; simp
-    unfold FiniteDirectedGraph.add_node; simp
-    apply Finset.notMem_empty
-  have h3 :
-    (1, 2) ∉
-    (add_node 2 NodeDataDzn (add_node 1 NodeDataLxy (empty (ep := ep)))).E
-  := by
-    unfold add_node; simp
-    unfold FiniteDirectedGraph.add_node; simp
-    apply Finset.notMem_empty
-  have h4 :
-    (ep (1, 2)).1 ∈
-    (add_node 2 NodeDataDzn (add_node 1 NodeDataLxy (empty (ep := ep)))).V
-  := by
-    unfold add_node; simp
-    unfold FiniteDirectedGraph.add_node; simp
-    left; rfl
-  have h5 :
-    (ep (1, 2)).2 ∈
-    (add_node 2 NodeDataDzn (add_node 1 NodeDataLxy (empty (ep := ep)))).V
-  := by
-    unfold add_node; simp
-    unfold FiniteDirectedGraph.add_node; simp
-    right; left; rfl
-  unfold graphExampleM
-  unfold graphExample
-  unfold add_node_safe at *
-  unfold add_edge_safe' at *
-  unfold add_node at *
-  unfold add_edge at *
-  simp [h1]; rw [except_ok_fold]
-  simp [h2]; rw [except_ok_fold]
-  simp [h3]
-  simp [h4]
-  simp [h5]
+  unfold graphExampleM graphExample
+  simp (config := { decide := true }) [
+    except_ok_fold,
+    add_node_safe,
+    add_edge_safe',
+    GraphWithData.empty,
+    GraphWithData.add_node,
+    GraphWithData.add_edge,
+    FiniteDirectedGraph.empty,
+    FiniteDirectedGraph.discrete,
+    FiniteDirectedGraph.add_node,
+    FiniteDirectedGraph.add_edge,
+    FiniteDirectedGraph.add_edge_safe,
+    ep
+  ]
   rfl
 
 end test
