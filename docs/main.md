@@ -60,7 +60,11 @@ Graph NodeData EdgeData
 
 转换可以运行在 `MetaM` 中，以便格式化 `Lean.Expr` 等元编程数据。
 
-项目提供如下显示入口：
+该部分分为两个阶段。
+
+#### 阶段一：最终状态展示
+
+提供如下显示入口：
 
 ```lean
 #show_graph graphExpression
@@ -68,6 +72,12 @@ Graph NodeData EdgeData
 
 编辑 `graphExpression` 或它依赖的定义后，Lean Server 会重新 elaboration 该命令并更新
 InfoView。Lean 代码始终是图的真实来源，不依赖外部 JSON 文件。
+
+#### 阶段二：分步状态展示
+
+尝试增加图操作 DSL，依次执行添加、删除和修改操作，并把每一步的 Graph 状态绑定到对应
+源码位置。用户移动光标时，InfoView 显示执行到该步骤后的图。该阶段继续使用现有
+`GraphDisplay`，不修改 ProofWidgets。
 
 ProofWidgets 当前对平行边和自环的显示支持有限。后端保留这些结构，并在文档中说明显示
 限制，不为此实现自定义前端。
@@ -80,3 +90,12 @@ ProofWidgets 当前对平行边和自环的显示支持有限。后端保留这�
 4. 将图转换为 ProofWidgets `GraphDisplay` 所需数据。
 5. 使用 `#show_graph` 在 InfoView 中显示图，并随源码修改自动更新。
 6. 提供基本示例、测试和使用文档。
+7. 验证图操作 DSL 和分步 InfoView 展示的可行性，并尽可能完成实现。
+
+## 分工
+
+1. 第一人负责 `Graph.lean`：图数据结构、增删改查、错误处理和单元测试。
+2. 第二人负责 `Display.lean` 和 `Command.lean`：渲染转换与 `#show_graph` 最终状态展示。
+3. 第三人负责示例、集成测试，并在 `DSL.lean` 中验证和实现分步状态展示。
+
+三人应先共同确定 Graph 的公共读取接口和渲染转换接口，避免并行开发时重复修改同一文件。
