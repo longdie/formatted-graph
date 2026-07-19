@@ -11,7 +11,7 @@ Conversion from generic graphs to ProofWidgets graph display data.
 
 namespace FormattedGraph
 
-open Lean ProofWidgets
+open Lean Server ProofWidgets
 open scoped ProofWidgets.Jsx
 
 /-- Presentation data for one graph node. -/
@@ -27,35 +27,52 @@ structure EdgePresentation where
   attrs : Array (String × Json) := #[]
 
 /-- Describes how an application's node identifiers and data are displayed. -/
-class NodeRenderer (ν : Type u) [WithData.NodeData ν] where
+class NodeRenderer (ν : Type u) [GraphWithData.NodeData ν] where
   id : ν → String
-  render : (node : ν) → WithData.δ ν → MetaM NodePresentation
+  render : (node : ν) → GraphWithData.δ ν → MetaM NodePresentation
 
 /-- Describes how an application's edge identifiers and data are displayed. -/
-class EdgeRenderer (ε : Type u) [WithData.EdgeData ε] where
-  render : (edge : ε) → WithData.δ ε → MetaM EdgePresentation
+class EdgeRenderer (ε : Type u) [GraphWithData.EdgeData ε] where
+  render : (edge : ε) → GraphWithData.δ ε → MetaM EdgePresentation
 
 /-- Values that can be converted to ProofWidgets graph properties. -/
 class ToGraphDisplay (α : Type u) where
   toGraphDisplay : α → MetaM GraphDisplay.Props
 
+namespace HierarchicalGraphDisplay
+
+/-- Properties consumed by the draggable, top-to-bottom graph widget. -/
+structure Props where
+  vertices : Array GraphDisplay.Vertex
+  edges : Array GraphDisplay.Edge
+  defaultEdgeAttrs : Array (String × Json)
+  showDetails : Bool := false
+  deriving Inhabited, RpcEncodable
+
+end HierarchicalGraphDisplay
+
+/-- A top-to-bottom dependency layout whose nodes keep their user-adjusted positions. -/
+@[widget_module]
+def HierarchicalGraphDisplay : Component HierarchicalGraphDisplay.Props where
+  javascript := include_str ".." / "widget" / "js" / "hierarchicalGraph.js"
+
 /-- A compact rectangular node suitable for text labels. -/
 def NodePresentation.text (label : String) (details? : Option Html := none) :
     NodePresentation :=
-  let width := max 88 (label.length * 8 + 24)
+  let width := max 104 (label.length * 8 + 32)
   let x : Int := -(Int.ofNat width / 2)
   {
     label :=
       <g>
         <rect
           x={x}
-          y={(-18 : Int)}
+          y={(-20 : Int)}
           width={width}
-          height={36}
+          height={40}
           rx={6}
           fill="var(--vscode-editor-background)"
-          stroke="var(--vscode-editor-foreground)"
-          strokeWidth="1.5"
+          stroke="var(--vscode-editorWidget-border)"
+          strokeWidth="1.25"
         />
         <text
           textAnchor="middle"
@@ -63,19 +80,31 @@ def NodePresentation.text (label : String) (details? : Option Html := none) :
           fill="var(--vscode-editor-foreground)"
         >{.text label}</text>
       </g>
-    boundingShape := .rect width.toFloat 36
+    boundingShape := .rect width.toFloat 40
     details?
   }
 
 /-- A text label suitable for the midpoint of an edge. -/
 def EdgePresentation.text (label : String) (details? : Option Html := none) :
     EdgePresentation :=
+  let width := max 36 (label.length * 7 + 16)
+  let x : Int := -(Int.ofNat width / 2)
   {
-    label? := some <| <text
-      textAnchor="middle"
-      dominantBaseline="middle"
-      fill="var(--vscode-editor-foreground)"
-    >{.text label}</text>
+    label? := some <| <g>
+      <rect
+        x={x}
+        y={(-10 : Int)}
+        width={width}
+        height={20}
+        rx={4}
+        fill="var(--vscode-editor-background)"
+      />
+      <text
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill="var(--vscode-editor-foreground)"
+      >{.text label}</text>
+    </g>
     details?
   }
 
@@ -83,10 +112,10 @@ def EdgePresentation.text (label : String) (details? : Option Html := none) :
 def graphToProps
     [DecidableEq ν] [DecidableEq ε]
     [LinearOrder ν] [LinearOrder ε]
-    [WithData.NodeData ν] [WithData.EdgeData ε]
+    [GraphWithData.NodeData ν] [GraphWithData.EdgeData ε]
     [NodeRenderer ν] [EdgeRenderer ε]
     {ep : ε → ν × ν}
-    (graph : WithData.GraphWithData ep) : MetaM GraphDisplay.Props := do
+    (graph : GraphWithData ep) : MetaM GraphDisplay.Props := do
   let mut vertices : Array GraphDisplay.Vertex := #[]
   let mut nodeIds : Array String := #[]
 
@@ -130,10 +159,10 @@ def graphToProps
 instance graphWithDataToGraphDisplay
     [DecidableEq ν] [DecidableEq ε]
     [LinearOrder ν] [LinearOrder ε]
-    [WithData.NodeData ν] [WithData.EdgeData ε]
+    [GraphWithData.NodeData ν] [GraphWithData.EdgeData ε]
     [NodeRenderer ν] [EdgeRenderer ε]
     {ep : ε → ν × ν} :
-    ToGraphDisplay (WithData.GraphWithData ep) where
+    ToGraphDisplay (GraphWithData ep) where
   toGraphDisplay := graphToProps
 
 /-- Build the HTML panel displayed by `#show_graph`. -/
@@ -142,11 +171,10 @@ def graphHtml [ToGraphDisplay α] (graph : α) : MetaM Html := do
   return (<details «open»={true}>
       <summary className="mv2 pointer">Formatted graph</summary>
       <div style={json% { minHeight: "360px", width: "100%" }}>
-        <GraphDisplay
+        <HierarchicalGraphDisplay
           vertices={props.vertices}
           edges={props.edges}
           defaultEdgeAttrs={props.defaultEdgeAttrs}
-          forces={props.forces}
           showDetails={props.showDetails}
         />
       </div>

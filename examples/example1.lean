@@ -46,10 +46,10 @@ structure EdgeInfo where
   label : String
 deriving Repr
 
-instance : WithData.NodeData NodeId where
+instance : GraphWithData.NodeData NodeId where
   data_type := NodeInfo
 
-instance : WithData.EdgeData EdgeId where
+instance : GraphWithData.EdgeData EdgeId where
   data_type := EdgeInfo
 
 instance : FormattedGraph.NodeRenderer NodeId where
@@ -75,13 +75,13 @@ def endpoints : EdgeId → NodeId × NodeId
   | .parseToCheck => (parseNode, checkNode)
   | .checkToOutput => (checkNode, outputNode)
 
-open WithData
+open GraphWithData
 
 def missingNodeData : NodeInfo :=
   ⟨"Unknown", "Automatically added endpoint"⟩
 
 def exampleGraph : GraphWithData endpoints :=
-  GraphWithData.empty endpoints
+  GraphWithData.empty (ep := endpoints)
     |> GraphWithData.add_node inputNode
       (NodeInfo.mk "Input" "Raw input data")
     |> GraphWithData.add_node parseNode
