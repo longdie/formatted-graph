@@ -4,6 +4,10 @@ build/
 lake-packages/
 lake-manifest.json
 
+# Local dependencies for the custom InfoView widget. The bundled JavaScript in
+# widget/js is committed so Lean users do not need Node.js to build the project.
+widget/node_modules/
+
 # Lean artifacts that should normally live under .lake/
 *.olean
 *.ilean
