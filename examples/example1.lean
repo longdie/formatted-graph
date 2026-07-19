@@ -1,4 +1,5 @@
-import FormattedGraph.Graph
+import FormattedGraph
+import Mathlib.Data.String.Basic
 
 /-!
 # A small workflow graph
@@ -13,11 +14,28 @@ structure NodeId where
   value : String
 deriving DecidableEq, Repr
 
-structure EdgeId where
-  value : String
-  source : NodeId
-  target : NodeId
+inductive EdgeId where
+  | inputToParse
+  | parseToCheck
+  | checkToOutput
 deriving DecidableEq, Repr
+
+instance : LinearOrder NodeId :=
+  LinearOrder.lift' (fun node => node.value) (by
+    intro a b h
+    cases a
+    cases b
+    simp_all)
+
+def EdgeId.rank : EdgeId → Nat
+  | .inputToParse => 0
+  | .parseToCheck => 1
+  | .checkToOutput => 2
+
+instance : LinearOrder EdgeId :=
+  LinearOrder.lift' EdgeId.rank (by
+    intro a b h
+    cases a <;> cases b <;> simp_all [EdgeId.rank])
 
 structure NodeInfo where
   label : String
@@ -34,17 +52,28 @@ instance : WithData.NodeData NodeId where
 instance : WithData.EdgeData EdgeId where
   data_type := EdgeInfo
 
+instance : FormattedGraph.NodeRenderer NodeId where
+  id node := node.value
+  render _ data :=
+    pure <| FormattedGraph.NodePresentation.text data.label (.some (.text data.description))
+
+instance : FormattedGraph.EdgeRenderer EdgeId where
+  render _ data :=
+    pure <| FormattedGraph.EdgePresentation.text data.label
+
 def inputNode : NodeId := ⟨"input"⟩
 def parseNode : NodeId := ⟨"parse"⟩
 def checkNode : NodeId := ⟨"check"⟩
 def outputNode : NodeId := ⟨"output"⟩
 
-def inputToParse : EdgeId := ⟨"input-to-parse", inputNode, parseNode⟩
-def parseToCheck : EdgeId := ⟨"parse-to-check", parseNode, checkNode⟩
-def checkToOutput : EdgeId := ⟨"check-to-output", checkNode, outputNode⟩
+def inputToParse : EdgeId := .inputToParse
+def parseToCheck : EdgeId := .parseToCheck
+def checkToOutput : EdgeId := .checkToOutput
 
-def endpoints (edge : EdgeId) : NodeId × NodeId :=
-  (edge.source, edge.target)
+def endpoints : EdgeId → NodeId × NodeId
+  | .inputToParse => (inputNode, parseNode)
+  | .parseToCheck => (parseNode, checkNode)
+  | .checkToOutput => (checkNode, outputNode)
 
 open WithData
 
@@ -70,7 +99,6 @@ def exampleGraph : GraphWithData endpoints :=
 
 #check exampleGraph
 
--- After the InfoView command is implemented, this example will end with:
--- #show_graph exampleGraph
+#show_graph exampleGraph
 
 end FormattedGraph.Examples.Example1
