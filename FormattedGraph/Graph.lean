@@ -22,6 +22,7 @@ structure Graph (ep : ε → ν × ν) where
 /--
 `discrete ep V`: the discrete graph with a given node set `V` and no edges.
 -/
+@[simp]
 def discrete (ep : ε → ν × ν) (V : Finset ν) : Graph ep where
   V := V
   E := ∅
@@ -30,6 +31,7 @@ def discrete (ep : ε → ν × ν) (V : Finset ν) : Graph ep where
 /--
 `empty ep`: the empty graph, i.e., the one with no nodes and edges.
 -/
+@[simp]
 def empty {ep : ε → ν × ν} : Graph ep :=
   discrete ep ∅
 
@@ -37,24 +39,39 @@ def empty {ep : ε → ν × ν} : Graph ep :=
 `add_node v G`: to add a node `v` to a graph `G`.
 If `v` is already in `G`, then nothing happens.
 -/
+@[simp]
 def add_node {ep : ε → ν × ν} (v : ν)
     (G : Graph ep) : Graph ep where
-  V := {v} ∪ G.V
+  V := insert v G.V
   E := G.E
-  h := by intro _ h; simp [G.h, h]
+  h := by
+    intro e he
+    have hends := G.h he
+    exact ⟨
+      Finset.mem_insert_of_mem hends.1,
+      Finset.mem_insert_of_mem hends.2
+    ⟩
 
 /--
 `add_edge e G`: to add an edge `e` to a graph `G`.
 If `e` is already in `G`, then nothing happens.
 If some of the endpoints of `e` is not in `G`, then add it.
 -/
+@[simp]
 def add_edge {ep : ε → ν × ν} (e : ε)
     (G : Graph ep) : Graph ep where
-  V := {(ep e).1} ∪ {(ep e).2} ∪ G.V
-  E := {e} ∪ G.E
+  V := insert (ep e).1 (insert (ep e).2 G.V)
+  E := insert e G.E
   h := by
-    intro _ h; simp at h
-    rcases h with h | h <;> simp [G.h, h]
+    intro e' he'
+    simp only [Finset.mem_insert] at he'
+    rcases he' with rfl | he'
+    · simp
+    · have hends := G.h he'
+      exact ⟨
+        Finset.mem_insert_of_mem (Finset.mem_insert_of_mem hends.1),
+        Finset.mem_insert_of_mem (Finset.mem_insert_of_mem hends.2)
+      ⟩
 
 /--
 `remove_node v G`: to remove a node `v` from a graph `G`.
@@ -63,7 +80,7 @@ If `v` is in `G`, then all the edges that are adjacent to `v` are removed.
 -/
 def remove_node {ep : ε → ν × ν} (v : ν)
     (G : Graph ep) : Graph ep where
-  V := G.V \ {v}
+  V := G.V.erase v
   E := G.E \ { e ∈ G.E | (ep e).1 = v ∨ (ep e).2 = v}
   h := by intro _ h; simp at h; simp [G.h, h]
 
@@ -74,7 +91,7 @@ If `e` is not in `G`, then nothing happens.
 def remove_edge {ep : ε → ν × ν} (e : ε)
     (G : Graph ep) : Graph ep where
   V := G.V
-  E := G.E \ {e}
+  E := G.E.erase e
   h := by intro _ h; simp at h; simp [G.h, h]
 
 structure PushForwardStruct (ep : ε → ν × ν) where
@@ -124,18 +141,20 @@ def push_forward_edge {ep : ε → ν × ν}
 
 This operation preserves the node set.
 -/
+@[simp]
 def add_edge_safe {ep : ε → ν × ν} (e : ε)
     (G : Graph ep)
     (h1 : (ep e).1 ∈ G.V)
     (h2 : (ep e).2 ∈ G.V)
   : Graph ep where
   V := G.V
-  E := G.E ∪ {e}
+  E := insert e G.E
   h := by
-    intro _ h; simp at h
-    rcases h with h | h
-    . subst h; constructor <;> assumption
-    . exact G.h h
+    intro e' he'
+    simp only [Finset.mem_insert] at he'
+    rcases he' with rfl | he'
+    · exact ⟨h1, h2⟩
+    · exact G.h he'
 
 end FiniteDirectedGraph
 
@@ -182,6 +201,7 @@ variable [node_data_type : NodeData ν] [edge_data_type : EdgeData ε]
 /--
 `empty ep`: the empty graph, i.e., the one with no nodes and edges.
 -/
+@[simp]
 def empty {ep : ε → ν × ν} : GraphWithData ep where
   toGraph := FiniteDirectedGraph.empty
   data_v := fun ⟨_, h⟩ => (Finset.notMem_empty _ h).elim
@@ -201,6 +221,7 @@ def discrete (ep : ε → ν × ν) (V : Finset ν) (dv : δ ν)
 `add_node v dv G`: to add a node `v` to a graph `G`.
 If `v` is already in `G`, then nothing happens.
 -/
+@[simp]
 def add_node {ep : ε → ν × ν} (v : ν) (dv : δ ν)
     (G : GraphWithData ep) : GraphWithData ep where
   toGraph := FiniteDirectedGraph.add_node v G.toGraph
@@ -216,6 +237,7 @@ If `e` is already in `G`, then nothing happens.
 If some of the endpoints of `e` is not in `G`, then add it with data `dv`,
   which serves as a default value.
 -/
+@[simp]
 def add_edge {ep : ε → ν × ν} (e : ε) (de : δ ε) (dv : δ ν)
     (G : GraphWithData ep) : GraphWithData ep where
   toGraph := FiniteDirectedGraph.add_edge e G.toGraph
@@ -240,7 +262,7 @@ def remove_node {ep : ε → ν × ν} (v : ν)
     G.data_v ⟨v', by
       unfold FiniteDirectedGraph.remove_node at h
       simp at h
-      exact h.1
+      exact h.2
     ⟩
   data_e := fun ⟨e', h⟩ =>
     G.data_e ⟨e', by
@@ -261,7 +283,7 @@ def remove_edge {ep : ε → ν × ν}
     G.data_e ⟨e', by
       unfold FiniteDirectedGraph.remove_edge at h
       simp at h
-      exact h.1
+      exact h.2
     ⟩
 
 /--
@@ -305,6 +327,7 @@ def GraphWithDataM (ep : ε → ν × ν) :=
 `add_node v dv G`: to add a node `v` with data `dv` to a graph `G`.
 If `v` is already in `G`, then error `add_node_existing v` will be thrown out.
 -/
+@[simp]
 def add_node_safe {ep : ε → ν × ν} (v : ν) (dv : δ ν)
     (G : GraphWithData ep) : GraphWithDataM ep :=
   if v ∈ G.V
@@ -318,6 +341,7 @@ If some of the endpoints of `e` is not in `G`, then error
   `add_edge_start_point_missing` or `add_edge_end_point_missing` will be thrown
   out.
 -/
+@[simp]
 def add_edge_safe {ep : ε → ν × ν} (e : ε) (de : δ ε)
     (G : GraphWithData ep) : GraphWithDataM ep :=
   if e ∈ G.E then .error $ .add_edge_existing e
@@ -333,6 +357,62 @@ def add_edge_safe {ep : ε → ν × ν} (e : ε) (de : δ ε)
       ⟩
     else .error $ .add_edge_end_point_missing e
   else .error $ .add_edge_start_point_missing e
+
+abbrev Builder (ep : ε → ν × ν) :=
+  StateT (GraphWithData ep) (Except (GraphWithDataError ν ε))
+
+def Builder.modifyE
+    {ep : ε → ν × ν}
+    (f : GraphWithData ep → GraphWithDataM ep) :
+    Builder ep PUnit :=
+  fun G =>
+    match f G with
+    | .ok G'       => .ok (.unit, G')
+    | .error error => .error error
+
+def Builder.addNode
+    {ep : ε → ν × ν}
+    (v : ν) (dv : δ ν) :
+    Builder ep PUnit :=
+  Builder.modifyE (add_node_safe v dv)
+
+def Builder.addEdge
+    {ep : ε → ν × ν}
+    (e : ε) (de : δ ε) :
+    Builder ep PUnit :=
+  Builder.modifyE (add_edge_safe e de)
+
+def Builder.exec
+    {ep : ε → ν × ν}
+    (p : Builder ep PUnit)
+    (initial : GraphWithData ep) :
+    GraphWithDataM ep :=
+  match p.run initial with
+  | .ok (_, G)     => .ok G
+  | .error error   => .error error
+
+def Builder.build
+    {ep : ε → ν × ν}
+    (p : Builder ep PUnit) :
+    GraphWithDataM ep :=
+  p.exec GraphWithData.empty
+
+theorem modify_fold
+    {ep : ε → ν × ν}
+    (first_step : GraphWithData ep → GraphWithDataM ep)
+    (others : Builder ep PUnit)
+    (initial : GraphWithData ep)
+    :
+    Builder.exec (do
+      Builder.modifyE first_step
+      others
+    ) initial =
+    match Builder.exec (do Builder.modifyE first_step) initial with
+    | .ok G => Builder.exec (do others) G
+    | .error error => .error error := by
+  unfold Builder.exec; simp
+  rcases StateT.run (Builder.modifyE first_step) initial with
+    error | ⟨_, G⟩ <;> rfl
 
 end GraphWithData
 
@@ -414,6 +494,7 @@ If some of the endpoints of `e` is not in `G`, then error
   `add_edge_start_point_missing` or `add_edge_end_point_missing` will be thrown
   out.
 -/
+@[simp]
 def add_edge_safe' (e : Nat × Nat) (contents : String)
     (G : GraphWithData ep) : GraphWithDataM ep :=
   if e ∈ G.E then .error $ .add_edge_existing e
@@ -433,12 +514,26 @@ def add_edge_safe' (e : Nat × Nat) (contents : String)
     else .error $ .add_edge_end_point_missing e
   else .error $ .add_edge_start_point_missing e
 
-def graphExampleM : GraphWithDataM ep := do
+def graphExampleExcept : GraphWithDataM ep := do
   let G0 ← (pure empty)
   let G1 ← G0.add_node_safe 1 NodeDataLxy
   let G2 ← G1.add_node_safe 2 NodeDataDzn
   let G3 ← add_edge_safe' (1,2) "" G2
   pure G3
+
+@[simp]
+def add_edge_builder'
+    (e : Nat × Nat)
+    (contents : String) :
+    GraphWithData.Builder ep Unit :=
+  GraphWithData.Builder.modifyE
+    (add_edge_safe' e contents)
+
+def graphExampleM : GraphWithDataM ep :=
+  GraphWithData.Builder.build do
+    GraphWithData.Builder.addNode 1 NodeDataLxy
+    GraphWithData.Builder.addNode 2 NodeDataDzn
+    add_edge_builder' (1, 2) ""
 
 theorem except_ok_fold (x : α) (m : α → @Except β α)
   : (do
@@ -447,22 +542,24 @@ theorem except_ok_fold (x : α) (m : α → @Except β α)
     = m x :=
   rfl
 
+example : graphExampleExcept = .ok graphExample := by
+  unfold graphExampleExcept graphExample
+  simp [except_ok_fold]
+  rfl
+
 example : graphExampleM = .ok graphExample := by
   unfold graphExampleM graphExample
-  simp (config := { decide := true }) [
-    except_ok_fold,
-    add_node_safe,
-    add_edge_safe',
-    GraphWithData.empty,
-    GraphWithData.add_node,
-    GraphWithData.add_edge,
-    FiniteDirectedGraph.empty,
-    FiniteDirectedGraph.discrete,
-    FiniteDirectedGraph.add_node,
-    FiniteDirectedGraph.add_edge,
-    FiniteDirectedGraph.add_edge_safe,
-    ep
+  simp [
+    add_edge_builder',
+    Builder.addNode,
+    Builder.build
   ]
+  simp only [modify_fold]
+  simp (config := { decide := true}) [
+      StateT.run,
+      GraphWithData.Builder.exec,
+      GraphWithData.Builder.modifyE,
+    ]
   rfl
 
 end test
