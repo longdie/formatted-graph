@@ -421,7 +421,7 @@ def Builder.modifyE
 `Builder.addNode v dv allow`: add a node within a `Builder` computation.
 Errors matching a kind in `allow` are ignored.
 -/
-def Builder.addNode [DecidableEq ν] {ep : ε → ν × ν}
+abbrev Builder.addNode [DecidableEq ν] {ep : ε → ν × ν}
     (v : ν) (dv : δ ν)
     (allow : List (ErrorKind ep) := [])
   : Builder ep PUnit :=
@@ -431,7 +431,7 @@ def Builder.addNode [DecidableEq ν] {ep : ε → ν × ν}
 `Builder.addEdge e de allow`: add an edge within a `Builder` computation.
 Errors matching a kind in `allow` are ignored.
 -/
-def Builder.addEdge [DecidableEq ν] [DecidableEq ε] {ep : ε → ν × ν}
+abbrev Builder.addEdge [DecidableEq ν] [DecidableEq ε] {ep : ε → ν × ν}
     (e : ε) (de : δ ε)
     (allow : List (ErrorKind ep) := [])
   : Builder ep PUnit :=
@@ -459,11 +459,11 @@ def Builder.build
   p.exec GraphWithData.empty
 
 /-- Executing one lifted transformation is equivalent to applying it. -/
-@[simp] theorem Builder.exec_modifyE
+theorem Builder.exec_modifyE
     {ep : ε → ν × ν}
     (f : GraphWithData ep → Result ep)
-    (G : GraphWithData ep) :
-    Builder.exec (Builder.modifyE f) G = f G := by
+  : Builder.exec (Builder.modifyE f) = f := by
+  ext G
   unfold Builder.exec
   unfold StateT.run
   unfold modifyE
@@ -473,50 +473,26 @@ def Builder.build
 /--
 Split a builder computation after its first lifted graph transformation.
 -/
-theorem modify_fold
+theorem Builder.modify_fold
     {ep : ε → ν × ν}
-    (first_step : GraphWithData ep → Result ep)
+    (first_step : Builder ep PUnit)
     (others : Builder ep PUnit)
     (G : GraphWithData ep)
   : Builder.exec (do
-      Builder.modifyE first_step
+      first_step
       others
     ) G =
-    match Builder.exec (do Builder.modifyE first_step) G with
-    | .ok G' => Builder.exec (do others) G'
+    match Builder.exec first_step G with
+    | .ok G' => Builder.exec others G'
     | .error err => .error err := by
   unfold Builder.exec; simp
-  rcases StateT.run (Builder.modifyE first_step) G with
+  rcases StateT.run first_step G with
     error | ⟨_, G⟩ <;> rfl
 
-/--
-Execute the remaining builder steps only when `first_step` succeeds.
--/
-theorem Builder.exec_modifyE_then
-    {ep : ε → ν × ν}
-    (first_step : GraphWithData ep → Result ep)
-    (others : Builder ep PUnit)
-    (G : GraphWithData ep)
-  : Builder.exec (do
-      Builder.modifyE first_step
-      others
-    ) G =
-    match first_step G with
-    | .ok G' => Builder.exec others G'
-    | .error error => .error error := by
-  rw [modify_fold]
-  simp
-
-/-- Simplify concrete graph and builder computations by unfolding operations. -/
-macro "graph_simp" : tactic =>
+-- /-- Simplify concrete graph and builder computations by unfolding operations. -/
+macro "naive_graph_simp" : tactic =>
   `(tactic|
     (simp (config := { decide := true }) [
-      GraphWithData.Builder.addNode,
-      GraphWithData.Builder.addEdge,
-      GraphWithData.Builder.build,
-      GraphWithData.Builder.exec,
-      GraphWithData.Builder.modifyE,
-      StateT.run,
       GraphWithData.InfoResult.allow,
       GraphWithData.empty,
       GraphWithData.discrete,
@@ -576,7 +552,7 @@ instance : NodeData Nat where
 instance : EdgeData (Nat × Nat) where
   data_type := EdgeDataType
 
-def ep : Nat × Nat → Nat × Nat := id
+abbrev ep : Nat × Nat → Nat × Nat := id
 
 def NodeDataDefault : NodeDataType where
   content := ""
@@ -603,7 +579,7 @@ def graphExample : GraphWithData ep :=
   ).add_edge_unsafe
     (1,2)
     (EdgeData.mk' "" NodeDataLxy NodeDataDzn)
-    (by graph_simp)
+    (by naive_graph_simp)
 
 def add_edge_info' (e : Nat × Nat) (contents : String)
     (G : GraphWithData ep) : InfoResult ep :=
@@ -625,7 +601,7 @@ def add_edge' (e : Nat × Nat) (contents : String)
     (G : GraphWithData ep) : Result ep :=
   (add_edge_info' e contents G).allow []
 
-def Builder.addEdge'
+abbrev Builder.addEdge'
     (e : Nat × Nat) (contents : String)
   : Builder ep PUnit :=
   Builder.modifyE (fun G => add_edge' e contents G)
@@ -636,12 +612,78 @@ def graphExampleM : Result ep :=
     Builder.addNode 2 NodeDataDzn
     Builder.addEdge' (1, 2) ""
 
+macro "graph_head_simp" : tactic =>
+  `(tactic|
+      simp (config := { decide := true }) [
+        add_edge',
+        add_edge_info',
+
+        GraphWithData.InfoResult.allow,
+
+        GraphWithData.empty,
+        GraphWithData.discrete,
+
+        GraphWithData.add_node,
+        GraphWithData.add_edge,
+
+        GraphWithData.add_node_info,
+        GraphWithData.add_edge_info,
+
+        GraphWithData.add_node_unsafe,
+        GraphWithData.add_edge_unsafe,
+
+        Graph.empty,
+        Graph.discrete,
+
+        Graph.add_node,
+        Graph.add_edge,
+
+        Graph.add_node_unsafe,
+        Graph.add_edge_unsafe
+      ])
+
+macro "graph_step" : tactic =>
+  `(tactic| ((try rw [Builder.modify_fold]);(try rw [Builder.exec_modifyE])))
+
+macro "graph_step_simp" : tactic =>
+  `(tactic| ((try unfold Builder.build);graph_step;graph_head_simp))
+
+macro "graph_simp" : tactic =>
+  `(tactic| repeat graph_step_simp)
+
 example : graphExampleM = .ok graphExample := by
   unfold graphExampleM graphExample
-  unfold Builder.addEdge'
-  unfold Builder.addNode
+
   unfold Builder.build
-  simp only [Builder.exec_modifyE_then]
+
+  rw [Builder.modify_fold];
+  rw [Builder.exec_modifyE];
+  graph_head_simp
+
+  rw [Builder.modify_fold];
+  rw [Builder.exec_modifyE];
+  graph_head_simp
+
+  rw [Builder.exec_modifyE];
+  graph_head_simp
+
+  rfl
+
+example : graphExampleM = .ok graphExample := by
+  unfold graphExampleM graphExample
+
+  unfold Builder.build
+  repeat(
+    try rw [Builder.modify_fold];
+    try rw [Builder.exec_modifyE];
+    graph_head_simp
+  )
+
+  rfl
+
+example : graphExampleM = .ok graphExample := by
+  unfold graphExampleM graphExample
   graph_simp
+  rfl
 
 end test
