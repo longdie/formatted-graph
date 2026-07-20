@@ -140,7 +140,7 @@ end Graph
 
 section GraphWithData
 
-variable {ν : Type*} {ε : Type*} [DecidableEq ν] [DecidableEq ε]
+variable {ν : Type*} {ε : Type*}
 
 /-- `Data`: a typeclass for registration of data types. -/
 class Data (α : Type*) where
@@ -199,8 +199,9 @@ def discrete (ep : ε → ν × ν) (V : Finset ν) (dv : δ ν)
 `add_node_unsafe v dv G`: to add a node `v` to a graph `G`.
 * If `v` is already in `G`, then `G` remains unchanged.
 -/
-def add_node_unsafe {ep : ε → ν × ν} (v : ν) (dv : δ ν)
-    (G : GraphWithData ep) : GraphWithData ep where
+def add_node_unsafe  [DecidableEq ν] {ep : ε → ν × ν}
+    (v : ν) (dv : δ ν) (G : GraphWithData ep)
+  : GraphWithData ep where
   toGraph := Graph.add_node_unsafe v G.toGraph
   data_v := fun ⟨v', _⟩ =>
     if hin : v' ∈ G.V
@@ -213,10 +214,10 @@ def add_node_unsafe {ep : ε → ν × ν} (v : ν) (dv : δ ν)
   assumption `h` that the endpoints of `e` are in `G`.
 * If `e` is already in `G`, then `G` remains unchanged.
 -/
-def add_edge_unsafe {ep : ε → ν × ν} (e : ε) (de : δ ε)
-    (G : GraphWithData ep)
+def add_edge_unsafe [DecidableEq ε] {ep : ε → ν × ν}
+    (e : ε) (de : δ ε) (G : GraphWithData ep)
     (h : (ep e).1 ∈ G.V ∧ (ep e).2 ∈ G.V)
-    : GraphWithData ep where
+  : GraphWithData ep where
   toGraph := Graph.add_edge_unsafe e G.toGraph h
   data_v := G.data_v
   data_e := fun ⟨e', _⟩ =>
@@ -338,15 +339,17 @@ abbrev Result (ep : ε → ν × ν) :=
 abbrev Builder (ep : ε → ν × ν) :=
   StateT (GraphWithData ep) (BuildM ep)
 
-def add_node_info {ep : ε → ν × ν} (v : ν) (dv : δ ν)
-    (G : GraphWithData ep) : InfoResult ep :=
+def add_node_info [DecidableEq ν] {ep : ε → ν × ν}
+    (v : ν) (dv : δ ν) (G : GraphWithData ep)
+  : InfoResult ep :=
   ⟨
     (Graph.add_node v G.toGraph).1,
     G.add_node_unsafe v dv
   ⟩
 
-def add_edge_info {ep : ε → ν × ν} (e : ε) (de : δ ε)
-    (G : GraphWithData ep) : InfoResult ep :=
+def add_edge_info [DecidableEq ν] [DecidableEq ε] {ep : ε → ν × ν}
+    (e : ε) (de : δ ε) (G : GraphWithData ep)
+  : InfoResult ep :=
   if h : e ∉ G.E ∧ (ep e).1 ∈ G.V ∧ (ep e).2 ∈ G.V
   then ⟨.ok, G.add_edge_unsafe e de h.2⟩
   else ⟨(Graph.add_edge e G.toGraph).1, G⟩
@@ -360,14 +363,16 @@ def InfoResult.allow {ep : ε → ν × ν} (allow : List (ErrorKind ep)) :
       then .ok G
       else .error err
 
-def add_node {ep : ε → ν × ν} (v : ν) (dv : δ ν)
-    (G : GraphWithData ep) (allow : List (ErrorKind ep) := [])
-    : Result ep :=
+def add_node [DecidableEq ν] {ep : ε → ν × ν}
+    (v : ν) (dv : δ ν) (G : GraphWithData ep)
+    (allow : List (ErrorKind ep) := [])
+  : Result ep :=
   (add_node_info v dv G).allow allow
 
-def add_edge {ep : ε → ν × ν} (e : ε) (de : δ ε)
-    (G : GraphWithData ep) (allow : List (ErrorKind ep) := [])
-    : Result ep :=
+def add_edge [DecidableEq ν] [DecidableEq ε] {ep : ε → ν × ν}
+    (e : ε) (de : δ ε) (G : GraphWithData ep)
+    (allow : List (ErrorKind ep) := [])
+  : Result ep :=
   (add_edge_info e de G).allow allow
 
 def Builder.modifyE
@@ -379,15 +384,13 @@ def Builder.modifyE
     | .ok G'     => .ok (.unit, G')
     | .error err => .error err
 
-def Builder.addNode
-    {ep : ε → ν × ν}
+def Builder.addNode [DecidableEq ν] {ep : ε → ν × ν}
     (v : ν) (dv : δ ν)
     (allow : List (ErrorKind ep) := [])
   : Builder ep PUnit :=
   Builder.modifyE (fun G => add_node v dv G allow)
 
-def Builder.addEdge
-    {ep : ε → ν × ν}
+def Builder.addEdge [DecidableEq ν] [DecidableEq ε] {ep : ε → ν × ν}
     (e : ε) (de : δ ε)
     (allow : List (ErrorKind ep) := [])
   : Builder ep PUnit :=
@@ -583,7 +586,7 @@ example : graphExampleM = .ok graphExample := by
   unfold Builder.addEdge'
   unfold Builder.addNode
   unfold Builder.build
-  simp [Builder.exec_modifyE_then]
+  simp only [Builder.exec_modifyE_then]
   graph_simp
 
 end test
