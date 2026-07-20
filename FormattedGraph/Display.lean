@@ -71,8 +71,9 @@ def NodePresentation.text (label : String) (details? : Option Html := none) :
           height={40}
           rx={6}
           fill="var(--vscode-editor-background)"
-          stroke="var(--vscode-editorWidget-border)"
-          strokeWidth="1.25"
+          stroke="var(--vscode-editor-foreground)"
+          strokeOpacity="0.65"
+          strokeWidth="2"
         />
         <text
           textAnchor="middle"
