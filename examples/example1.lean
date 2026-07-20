@@ -46,10 +46,10 @@ structure EdgeInfo where
   label : String
 deriving Repr
 
-instance : GraphWithData.NodeData NodeId where
+instance : Data.NodeData NodeId where
   data_type := NodeInfo
 
-instance : GraphWithData.EdgeData EdgeId where
+instance : Data.EdgeData EdgeId where
   data_type := EdgeInfo
 
 instance : FormattedGraph.NodeRenderer NodeId where
@@ -75,27 +75,22 @@ def endpoints : EdgeId → NodeId × NodeId
   | .parseToCheck => (parseNode, checkNode)
   | .checkToOutput => (checkNode, outputNode)
 
-open GraphWithData
-
-def missingNodeData : NodeInfo :=
-  ⟨"Unknown", "Automatically added endpoint"⟩
-
-def exampleGraph : GraphWithData endpoints :=
-  GraphWithData.empty (ep := endpoints)
-    |> GraphWithData.add_node inputNode
+def exampleGraph : GraphWithData.Result endpoints :=
+  GraphWithData.Builder.build do
+    GraphWithData.Builder.addNode inputNode
       (NodeInfo.mk "Input" "Raw input data")
-    |> GraphWithData.add_node parseNode
+    GraphWithData.Builder.addNode parseNode
       (NodeInfo.mk "Parse" "Parse the input")
-    |> GraphWithData.add_node checkNode
+    GraphWithData.Builder.addNode checkNode
       (NodeInfo.mk "Check" "Validate the parsed data")
-    |> GraphWithData.add_node outputNode
+    GraphWithData.Builder.addNode outputNode
       (NodeInfo.mk "Output" "Produce the final result")
-    |> GraphWithData.add_edge inputToParse
-      (EdgeInfo.mk "next") missingNodeData
-    |> GraphWithData.add_edge parseToCheck
-      (EdgeInfo.mk "next") missingNodeData
-    |> GraphWithData.add_edge checkToOutput
-      (EdgeInfo.mk "next") missingNodeData
+    GraphWithData.Builder.addEdge inputToParse
+      (EdgeInfo.mk "next")
+    GraphWithData.Builder.addEdge parseToCheck
+      (EdgeInfo.mk "next")
+    GraphWithData.Builder.addEdge checkToOutput
+      (EdgeInfo.mk "next")
 
 #check exampleGraph
 
