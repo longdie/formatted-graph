@@ -1,4 +1,4 @@
-import FormattedGraph.Graph
+import FormattedGraph.Graphtest
 import Mathlib.Data.Finset.Sort
 import ProofWidgets.Component.GraphDisplay
 import ProofWidgets.Component.HtmlDisplay
@@ -27,13 +27,13 @@ structure EdgePresentation where
   attrs : Array (String × Json) := #[]
 
 /-- Describes how an application's node identifiers and data are displayed. -/
-class NodeRenderer (ν : Type u) [GraphWithData.NodeData ν] where
+class NodeRenderer (ν : Type u) [Data.NodeData ν] where
   id : ν → String
-  render : (node : ν) → GraphWithData.δ ν → MetaM NodePresentation
+  render : (node : ν) → Data.δ ν → MetaM NodePresentation
 
 /-- Describes how an application's edge identifiers and data are displayed. -/
-class EdgeRenderer (ε : Type u) [GraphWithData.EdgeData ε] where
-  render : (edge : ε) → GraphWithData.δ ε → MetaM EdgePresentation
+class EdgeRenderer (ε : Type u) [Data.EdgeData ε] where
+  render : (edge : ε) → Data.δ ε → MetaM EdgePresentation
 
 /-- Values that can be converted to ProofWidgets graph properties. -/
 class ToGraphDisplay (α : Type u) where
@@ -112,7 +112,7 @@ def EdgePresentation.text (label : String) (details? : Option Html := none) :
 def graphToProps
     [DecidableEq ν] [DecidableEq ε]
     [LinearOrder ν] [LinearOrder ε]
-    [GraphWithData.NodeData ν] [GraphWithData.EdgeData ε]
+    [Data.NodeData ν] [Data.EdgeData ε]
     [NodeRenderer ν] [EdgeRenderer ε]
     {ep : ε → ν × ν}
     (graph : GraphWithData ep) : MetaM GraphDisplay.Props := do
@@ -159,11 +159,23 @@ def graphToProps
 instance graphWithDataToGraphDisplay
     [DecidableEq ν] [DecidableEq ε]
     [LinearOrder ν] [LinearOrder ε]
-    [GraphWithData.NodeData ν] [GraphWithData.EdgeData ε]
+    [Data.NodeData ν] [Data.EdgeData ε]
     [NodeRenderer ν] [EdgeRenderer ε]
     {ep : ε → ν × ν} :
     ToGraphDisplay (GraphWithData ep) where
   toGraphDisplay := graphToProps
+
+/-- Display the successful result of a safe graph construction. -/
+instance graphWithDataResultToGraphDisplay
+    [DecidableEq ν] [DecidableEq ε]
+    [LinearOrder ν] [LinearOrder ε]
+    [Data.NodeData ν] [Data.EdgeData ε]
+    [NodeRenderer ν] [EdgeRenderer ε]
+    {ep : ε → ν × ν} :
+    ToGraphDisplay (GraphWithData.Result ep) where
+  toGraphDisplay
+    | .ok graph => graphToProps graph
+    | .error _ => throwError "cannot display graph: graph construction failed"
 
 /-- Build the HTML panel displayed by `#show_graph`. -/
 def graphHtml [ToGraphDisplay α] (graph : α) : MetaM Html := do
