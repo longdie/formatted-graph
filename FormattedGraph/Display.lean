@@ -1,4 +1,4 @@
-import FormattedGraph.Graphtest
+import FormattedGraph.Graph
 import Mathlib.Data.Finset.Sort
 import ProofWidgets.Component.GraphDisplay
 import ProofWidgets.Component.HtmlDisplay

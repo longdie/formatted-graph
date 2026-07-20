@@ -1,4 +1,4 @@
-import FormattedGraph.Graphtest
+import FormattedGraph.Graph
 import FormattedGraph.Display
 import FormattedGraph.Command
 
