@@ -256,19 +256,21 @@ inductive Info (ep : ε → ν × ν) where
   | error (err : Error ep)
   | ok
 
-/- embeddings from errors for graphs to errors for graphs with data -/
-
+/-- Embed a node error from `Graph` into the corresponding data-graph error. -/
 instance : Coe Graph.NodeError NodeError where
   coe := .graph_node_error
 
+/-- Embed an edge error from `Graph` into the corresponding data-graph error. -/
 instance : Coe Graph.EdgeError EdgeError where
   coe := .graph_edge_error
 
+/-- Embed a `Graph.Error` into the corresponding `GraphWithData.Error`. -/
 instance {ep : ε → ν × ν} : Coe (Graph.Error ep) (Error ep) where
   coe
   | .node_error v err => .node_error v err
   | .edge_error e err => .edge_error e err
 
+/-- Embed execution information from `Graph` into `GraphWithData.Info`. -/
 instance {ep : ε → ν × ν} : Coe (Graph.Info ep) (Info ep) where
   coe
   | .error err => .error err
@@ -299,15 +301,21 @@ def ErrorKindMatch {ep : ε → ν × ν} :
   | .all, _
     | .node, .node_error _ _
       | .add_node_existing, .node_error _ $ .graph_node_error .add_node_existing
-      | .remove_node_missing, .node_error _ $ .graph_node_error .remove_node_missing
+      | .remove_node_missing,
+          .node_error _ $ .graph_node_error .remove_node_missing
       | .edit_node_missing, .node_error _ $ .edit_node_missing
     | .edge, .edge_error _ _
       | .add_edge_existing, .edge_error _ $ .graph_edge_error .add_edge_existing
-      | .add_edge_points_missing, .edge_error _ $ .graph_edge_error .add_edge_start_point_missing
-      | .add_edge_points_missing, .edge_error _ $ .graph_edge_error .add_edge_end_point_missing
-        | .add_edge_start_point_missing, .edge_error _ $ .graph_edge_error .add_edge_start_point_missing
-        | .add_edge_end_point_missing, .edge_error _ $ .graph_edge_error .add_edge_end_point_missing
-      | .remove_edge_missing, .edge_error _ $ .graph_edge_error .remove_edge_missing
+      | .add_edge_points_missing,
+          .edge_error _ $ .graph_edge_error .add_edge_start_point_missing
+      | .add_edge_points_missing,
+          .edge_error _ $ .graph_edge_error .add_edge_end_point_missing
+        | .add_edge_start_point_missing,
+            .edge_error _ $ .graph_edge_error .add_edge_start_point_missing
+        | .add_edge_end_point_missing,
+            .edge_error _ $ .graph_edge_error .add_edge_end_point_missing
+      | .remove_edge_missing,
+          .edge_error _ $ .graph_edge_error .remove_edge_missing
       | .edit_edge_missing, .edge_error _ $ .edit_edge_missing
     => true
   | _, _ => false
@@ -339,6 +347,11 @@ abbrev Result (ep : ε → ν × ν) :=
 abbrev Builder (ep : ε → ν × ν) :=
   StateT (GraphWithData ep) (BuildM ep)
 
+/--
+`add_node_info v dv G`: attempt to add node `v` with data `dv` to `G`.
+The returned `InfoResult` contains both the execution information and the
+resulting graph.
+-/
 def add_node_info [DecidableEq ν] {ep : ε → ν × ν}
     (v : ν) (dv : δ ν) (G : GraphWithData ep)
   : InfoResult ep :=
@@ -347,6 +360,10 @@ def add_node_info [DecidableEq ν] {ep : ε → ν × ν}
     G.add_node_unsafe v dv
   ⟩
 
+/--
+`add_edge_info e de G`: attempt to add edge `e` with data `de` to `G`.
+The graph is updated only when the edge is new and both endpoints exist.
+-/
 def add_edge_info [DecidableEq ν] [DecidableEq ε] {ep : ε → ν × ν}
     (e : ε) (de : δ ε) (G : GraphWithData ep)
   : InfoResult ep :=
@@ -354,6 +371,10 @@ def add_edge_info [DecidableEq ν] [DecidableEq ε] {ep : ε → ν × ν}
   then ⟨.ok, G.add_edge_unsafe e de h.2⟩
   else ⟨(Graph.add_edge e G.toGraph).1, G⟩
 
+/--
+`InfoResult.allow allow result`: convert `result` to a `Result`.
+An error is ignored exactly when it matches at least one kind in `allow`.
+-/
 def InfoResult.allow {ep : ε → ν × ν} (allow : List (ErrorKind ep)) :
   InfoResult ep → Result ep
   | ⟨i, G⟩ => match i with
@@ -363,18 +384,30 @@ def InfoResult.allow {ep : ε → ν × ν} (allow : List (ErrorKind ep)) :
       then .ok G
       else .error err
 
+/--
+`add_node v dv G allow`: safely add node `v` with data `dv` to `G`.
+Errors matching a kind in `allow` are ignored.
+-/
 def add_node [DecidableEq ν] {ep : ε → ν × ν}
     (v : ν) (dv : δ ν) (G : GraphWithData ep)
     (allow : List (ErrorKind ep) := [])
   : Result ep :=
   (add_node_info v dv G).allow allow
 
+/--
+`add_edge e de G allow`: safely add edge `e` with data `de` to `G`.
+Errors matching a kind in `allow` are ignored.
+-/
 def add_edge [DecidableEq ν] [DecidableEq ε] {ep : ε → ν × ν}
     (e : ε) (de : δ ε) (G : GraphWithData ep)
     (allow : List (ErrorKind ep) := [])
   : Result ep :=
   (add_edge_info e de G).allow allow
 
+/--
+`Builder.modifyE f`: lift an error-aware graph transformation `f` into the
+`Builder` monad.
+-/
 def Builder.modifyE
     {ep : ε → ν × ν}
     (f : GraphWithData ep → Result ep) :
@@ -384,18 +417,29 @@ def Builder.modifyE
     | .ok G'     => .ok (.unit, G')
     | .error err => .error err
 
+/--
+`Builder.addNode v dv allow`: add a node within a `Builder` computation.
+Errors matching a kind in `allow` are ignored.
+-/
 def Builder.addNode [DecidableEq ν] {ep : ε → ν × ν}
     (v : ν) (dv : δ ν)
     (allow : List (ErrorKind ep) := [])
   : Builder ep PUnit :=
   Builder.modifyE (fun G => add_node v dv G allow)
 
+/--
+`Builder.addEdge e de allow`: add an edge within a `Builder` computation.
+Errors matching a kind in `allow` are ignored.
+-/
 def Builder.addEdge [DecidableEq ν] [DecidableEq ε] {ep : ε → ν × ν}
     (e : ε) (de : δ ε)
     (allow : List (ErrorKind ep) := [])
   : Builder ep PUnit :=
   Builder.modifyE (fun G => add_edge e de G allow)
 
+/--
+`Builder.exec p G`: execute builder computation `p` from initial graph `G`.
+-/
 def Builder.exec
     {ep : ε → ν × ν}
     (p : Builder ep PUnit)
@@ -405,12 +449,16 @@ def Builder.exec
   | .ok ⟨_, G'⟩     => .ok G'
   | .error error   => .error error
 
+/--
+`Builder.build p`: execute builder computation `p` from the empty graph.
+-/
 def Builder.build
     {ep : ε → ν × ν}
     (p : Builder ep PUnit) :
     Result ep :=
   p.exec GraphWithData.empty
 
+/-- Executing one lifted transformation is equivalent to applying it. -/
 @[simp] theorem Builder.exec_modifyE
     {ep : ε → ν × ν}
     (f : GraphWithData ep → Result ep)
@@ -422,6 +470,9 @@ def Builder.build
   generalize f G = r
   cases r <;> rfl
 
+/--
+Split a builder computation after its first lifted graph transformation.
+-/
 theorem modify_fold
     {ep : ε → ν × ν}
     (first_step : GraphWithData ep → Result ep)
@@ -438,6 +489,9 @@ theorem modify_fold
   rcases StateT.run (Builder.modifyE first_step) G with
     error | ⟨_, G⟩ <;> rfl
 
+/--
+Execute the remaining builder steps only when `first_step` succeeds.
+-/
 theorem Builder.exec_modifyE_then
     {ep : ε → ν × ν}
     (first_step : GraphWithData ep → Result ep)
@@ -453,6 +507,7 @@ theorem Builder.exec_modifyE_then
   rw [modify_fold]
   simp
 
+/-- Simplify concrete graph and builder computations by unfolding operations. -/
 macro "graph_simp" : tactic =>
   `(tactic|
     (simp (config := { decide := true }) [
