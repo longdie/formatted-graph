@@ -235,7 +235,7 @@ def InfoResult.allow {ep : ε → ν × ν} (allow : List (ErrorKind ep)) :
   | ⟨i, G⟩ => match i with
     | .ok => .ok G
     | .error err =>
-      if allow.foldl (fun b err_kind => b && ErrorKindMatch err_kind err) true
+      if allow.foldl (fun b err_kind => b || ErrorKindMatch err_kind err) false
       then .ok G
       else .error err
 
@@ -437,7 +437,7 @@ def graphExample : GraphWithData ep :=
   ).add_edge_unsafe
     (1,2)
     (EdgeData.mk' "" NodeDataLxy NodeDataDzn)
-    sorry
+    (by graph_simp)
 
 def add_edge_info' (e : Nat × Nat) (contents : String)
     (G : GraphWithData ep) : InfoResult ep :=
