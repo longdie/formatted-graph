@@ -1,28 +1,29 @@
 import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Finset.Image
 
-namespace FiniteDirectedGraph
+section Graph
 
 variable {ν : Type*} {ε : Type*} [DecidableEq ν] [DecidableEq ε]
 
 /--
-finite directed graph
+`Graph ep`: finite directed graph
 * `ν`: the type of all possible nodes
 * `ε`: the type of all possible edges
 * `ep`: the endpoints of each edge in `ε`
 * `V`: the finite set of nodes
 * `E`: the finite set of edges
-* `h`: the hypothesis that the endpoints of each edge in `E` is in `V`
+* `h`: the endpoints of each edge in `E` are in `V`
 -/
 structure Graph (ep : ε → ν × ν) where
   V : Finset ν
   E : Finset ε
   h : ∀ {e : ε}, e ∈ E → (ep e).1 ∈ V ∧ (ep e).2 ∈ V
 
+namespace Graph
+
 /--
 `discrete ep V`: the discrete graph with a given node set `V` and no edges.
 -/
-@[simp]
 def discrete (ep : ε → ν × ν) (V : Finset ν) : Graph ep where
   V := V
   E := ∅
@@ -31,16 +32,14 @@ def discrete (ep : ε → ν × ν) (V : Finset ν) : Graph ep where
 /--
 `empty ep`: the empty graph, i.e., the one with no nodes and edges.
 -/
-@[simp]
 def empty {ep : ε → ν × ν} : Graph ep :=
   discrete ep ∅
 
 /--
-`add_node v G`: to add a node `v` to a graph `G`.
-If `v` is already in `G`, then nothing happens.
+`add_node_unsafe v G`: to add a node `v` to a graph `G`.
+* If `v` is already in `G`, then `G` remains unchanged.
 -/
-@[simp]
-def add_node {ep : ε → ν × ν} (v : ν)
+def add_node_unsafe {ep : ε → ν × ν} (v : ν)
     (G : Graph ep) : Graph ep where
   V := insert v G.V
   E := G.E
@@ -53,157 +52,136 @@ def add_node {ep : ε → ν × ν} (v : ν)
     ⟩
 
 /--
-`add_edge e G`: to add an edge `e` to a graph `G`.
-If `e` is already in `G`, then nothing happens.
-If some of the endpoints of `e` is not in `G`, then add it.
+`add_edge_unsafe e G h`: to add an edge `e` to a graph `G` under the assumption
+  `h` that the endpoints of `e` are in `G`.
+* If `e` is already in `G`, then `G` remains unchanged.
 -/
-@[simp]
-def add_edge {ep : ε → ν × ν} (e : ε)
-    (G : Graph ep) : Graph ep where
-  V := insert (ep e).1 (insert (ep e).2 G.V)
-  E := insert e G.E
-  h := by
-    intro e' he'
-    simp only [Finset.mem_insert] at he'
-    rcases he' with rfl | he'
-    · simp
-    · have hends := G.h he'
-      exact ⟨
-        Finset.mem_insert_of_mem (Finset.mem_insert_of_mem hends.1),
-        Finset.mem_insert_of_mem (Finset.mem_insert_of_mem hends.2)
-      ⟩
-
-/--
-`remove_node v G`: to remove a node `v` from a graph `G`.
-If `v` is not in `G`, then nothing happens.
-If `v` is in `G`, then all the edges that are adjacent to `v` are removed.
--/
-def remove_node {ep : ε → ν × ν} (v : ν)
-    (G : Graph ep) : Graph ep where
-  V := G.V.erase v
-  E := G.E \ { e ∈ G.E | (ep e).1 = v ∨ (ep e).2 = v}
-  h := by intro _ h; simp at h; simp [G.h, h]
-
-/--
-`remove_edge e G`: to remove an edge `e` from a graph `G`.
-If `e` is not in `G`, then nothing happens.
--/
-def remove_edge {ep : ε → ν × ν} (e : ε)
-    (G : Graph ep) : Graph ep where
-  V := G.V
-  E := G.E.erase e
-  h := by intro _ h; simp at h; simp [G.h, h]
-
-structure PushForwardStruct (ep : ε → ν × ν) where
-  rv : ν → ν
-  re : ε → ε
-  h1 : ∀ {e : ε}, (ep (re e)).1 = rv (ep e).1
-  h2 : ∀ {e : ε}, (ep (re e)).2 = rv (ep e).2
-
-/--
-`replace_node v v' re ... G`: to replace a node `v` by `v'` from a graph `G`.
-If `v` is not in `G`, then nothing happens.
-If `v` is in `G`, then all the edges that are adjacent to `v` are removed.
--/
-def push_forward {ep : ε → ν × ν}
-    (f : PushForwardStruct ep)
-    (G : Graph ep) : Graph ep where
-  V := G.V.image f.rv
-  E := G.E.image f.re
-  h := by
-    intro _ h; simp at h
-    rcases h with ⟨e, ⟨h, heq⟩⟩; subst heq
-    constructor <;> simp
-    . exists (ep e).1
-      simp [G.h, f.h1, h]
-    . exists (ep e).2
-      simp [G.h, f.h2, h]
-
-structure PushForwardEdgeStruct (ep : ε → ν × ν) where
-  r : ε → ε
-  h : ∀ {e : ε}, (ep (r e)) = (ep e)
-
-def PushForwardEdgeStruct.toPushForwardStruct {ep : ε → ν × ν}
-    (fe : PushForwardEdgeStruct ep) : PushForwardStruct ep where
-  rv := id
-  re := fe.r
-  h1 := by intro e; simp; rw[fe.h]
-  h2 := by intro e; simp; rw[fe.h]
-
-def push_forward_edge {ep : ε → ν × ν}
-    (f : PushForwardEdgeStruct ep)
-    (G : Graph ep) : Graph ep :=
-  push_forward f.toPushForwardStruct G
-
-/--
-`add_edge_safe_raw e G h1 h2`: to add an edge `e` to a graph `G`
-  under the assumptions that both endpoints of `e` are in `G`.
-
-This operation preserves the node set.
--/
-@[simp]
-def add_edge_safe {ep : ε → ν × ν} (e : ε)
+def add_edge_unsafe {ep : ε → ν × ν} (e : ε)
     (G : Graph ep)
-    (h1 : (ep e).1 ∈ G.V)
-    (h2 : (ep e).2 ∈ G.V)
-  : Graph ep where
+    (h : (ep e).1 ∈ G.V ∧ (ep e).2 ∈ G.V)
+    : Graph ep where
   V := G.V
   E := insert e G.E
   h := by
     intro e' he'
     simp only [Finset.mem_insert] at he'
     rcases he' with rfl | he'
-    · exact ⟨h1, h2⟩
+    · assumption
     · exact G.h he'
 
-end FiniteDirectedGraph
+/--
+`NodeError`: all possible errors about nodes triggerred by graph a modification
+-/
+inductive NodeError where
+  | add_node_existing
+  | remove_node_missing
 
+/--
+`EdgeError`: all possible errors about edges triggerred by graph a modification
+-/
+inductive EdgeError where
+  | add_edge_existing
+  | add_edge_start_point_missing
+  | add_edge_end_point_missing
+  | remove_edge_missing
 
+/-- `Error`: all possible errors triggerred by graph a modification -/
+inductive Error (ep : ε → ν × ν) where
+  | node_error (v : ν) (err : NodeError)
+  | edge_error (e : ε) (err : EdgeError)
 
+/--
+`Info`: the execution info, i.e., whether an error and which error is triggerred
+  by graph a modification
+-/
+inductive Info (ep : ε → ν × ν) where
+  | error (err : Error ep)
+  | ok
 
+/-- `GraphM`: the monad for graph modifications -/
+def GraphM (ep : ε → ν × ν) :=
+  StateM (Graph ep) (Info ep)
 
+/--
+`add_node v G`: to add a node `v` to a graph `G`.
+* If `v` is already in `G`, then `G` remains unchanged and the error
+  `.node_error v .add_node_existing` is raised.
+-/
+def add_node {ep : ε → ν × ν} (v : ν)
+  : GraphM ep :=
+  fun G => ⟨
+    if v ∈ G.V
+      then .error $ .node_error v .add_node_existing
+      else .ok,
+    add_node_unsafe v G
+  ⟩
 
+/--
+`add_edge e G`: to add a node `e` to a graph `G`.
+* If at least one of endpoints of `e` is not in `G`, then
+  either the error `.node_error e .add_edge_start_point_missing`
+  or another `.node_error e .add_edge_end_point_missing` is raised.
+* If `e` is already in `G`, then `G` remains unchanged and the error
+  `.node_error e .add_edge_existing` is raised.
+-/
+def add_edge {ep : ε → ν × ν} (e : ε)
+  : GraphM ep :=
+  fun G =>
+    if h1 : (ep e).1 ∈ G.V then
+      if h2 : (ep e).2 ∈ G.V then
+        if e ∈ G.E then ⟨.error $ .edge_error e .add_edge_existing, G⟩
+        else ⟨.ok, (add_edge_unsafe e G ⟨h1, h2⟩)⟩
+      else ⟨.error $ .edge_error e .add_edge_end_point_missing, G⟩
+    else ⟨.error $ .edge_error e .add_edge_start_point_missing, G⟩
 
+end Graph
 
+end Graph
 
-namespace GraphWithData
+section GraphWithData
 
 variable {ν : Type*} {ε : Type*} [DecidableEq ν] [DecidableEq ε]
 
+/-- `Data`: a typeclass for registration of data types. -/
 class Data (α : Type*) where
   data_type : Type*
 
+namespace Data
+
+/-- `NodeData`: a typeclass for registration of data types for nodes -/
 class NodeData (ν : Type*) extends Data ν
 
+/-- `EdgeData`: a typeclass for registration of data types for edges -/
 class EdgeData (ν : Type*) extends Data ν
 
-variable [node_data_type : NodeData ν] [edge_data_type : EdgeData ε]
-
+/-- `δ α`: a shorthand for extracting the stored data type -/
 abbrev δ (α : Type*) [data_type : Data α] := data_type.data_type
 
-end GraphWithData
+end Data
 
+/--
+`GraphWithData ep`: finited directed graph with data attached to nodes and edges
+* extended from `Graph ep`
+* `data_v` : the data attached to each node
+* `data_e` : the data attached to each edge
+-/
 structure GraphWithData
-  {ν : Type*} {ε : Type*}
-  [DecidableEq ν] [DecidableEq ε]
-  [node_data_type : GraphWithData.NodeData ν]
-  [edge_data_type : GraphWithData.EdgeData ε]
+  [node_data_type : Data.NodeData ν]
+  [edge_data_type : Data.EdgeData ε]
   (ep : ε → ν × ν)
-    extends FiniteDirectedGraph.Graph ep where
-  data_v : V → GraphWithData.δ ν
-  data_e : E → GraphWithData.δ ε
+    extends Graph ep where
+  data_v : V → Data.δ ν
+  data_e : E → Data.δ ε
 
 namespace GraphWithData
 
-variable {ν : Type*} {ε : Type*} [DecidableEq ν] [DecidableEq ε]
+open Data
+
 variable [node_data_type : NodeData ν] [edge_data_type : EdgeData ε]
 
-/--
-`empty ep`: the empty graph, i.e., the one with no nodes and edges.
--/
-@[simp]
+/-- `empty ep`: the empty graph, i.e., the one with no nodes and edges. -/
 def empty {ep : ε → ν × ν} : GraphWithData ep where
-  toGraph := FiniteDirectedGraph.empty
+  toGraph := Graph.empty
   data_v := fun ⟨_, h⟩ => (Finset.notMem_empty _ h).elim
   data_e := fun ⟨_, h⟩ => (Finset.notMem_empty _ h).elim
 
@@ -213,18 +191,17 @@ Each node is stored with data `dv`.
 -/
 def discrete (ep : ε → ν × ν) (V : Finset ν) (dv : δ ν)
     : GraphWithData ep where
-  toGraph := FiniteDirectedGraph.discrete ep V
+  toGraph := Graph.discrete ep V
   data_v := fun _ => dv
   data_e := fun ⟨_, h⟩ => (Finset.notMem_empty _ h).elim
 
 /--
-`add_node v dv G`: to add a node `v` to a graph `G`.
-If `v` is already in `G`, then nothing happens.
+`add_node_unsafe v dv G`: to add a node `v` to a graph `G`.
+* If `v` is already in `G`, then `G` remains unchanged.
 -/
-@[simp]
-def add_node {ep : ε → ν × ν} (v : ν) (dv : δ ν)
+def add_node_unsafe {ep : ε → ν × ν} (v : ν) (dv : δ ν)
     (G : GraphWithData ep) : GraphWithData ep where
-  toGraph := FiniteDirectedGraph.add_node v G.toGraph
+  toGraph := Graph.add_node_unsafe v G.toGraph
   data_v := fun ⟨v', _⟩ =>
     if hin : v' ∈ G.V
     then G.data_v ⟨v', hin⟩
@@ -232,198 +209,280 @@ def add_node {ep : ε → ν × ν} (v : ν) (dv : δ ν)
   data_e := G.data_e
 
 /--
-`add_edge e de dv G`: to add an edge `e` with data `de` to a graph `G`.
-If `e` is already in `G`, then nothing happens.
-If some of the endpoints of `e` is not in `G`, then add it with data `dv`,
-  which serves as a default value.
+`add_edge e de G h`: to add an edge `e` with data `de` to a graph `G` under the
+  assumption `h` that the endpoints of `e` are in `G`.
+* If `e` is already in `G`, then `G` remains unchanged.
 -/
-@[simp]
-def add_edge {ep : ε → ν × ν} (e : ε) (de : δ ε) (dv : δ ν)
-    (G : GraphWithData ep) : GraphWithData ep where
-  toGraph := FiniteDirectedGraph.add_edge e G.toGraph
-  data_v := fun ⟨v', _⟩ =>
-    if hin : v' ∈ G.V
-    then G.data_v ⟨v', hin⟩
-    else dv
+def add_edge_unsafe {ep : ε → ν × ν} (e : ε) (de : δ ε)
+    (G : GraphWithData ep)
+    (h : (ep e).1 ∈ G.V ∧ (ep e).2 ∈ G.V)
+    : GraphWithData ep where
+  toGraph := Graph.add_edge_unsafe e G.toGraph h
+  data_v := G.data_v
   data_e := fun ⟨e', _⟩ =>
     if hin : e' ∈ G.E
     then G.data_e ⟨e', hin⟩
     else de
 
 /--
-`remove_node v G`: to remove a node `v` from a graph `G`.
-If `v` is not in `G`, then nothing happens.
-If `v` is in `G`, then all the edges that are adjacent to `v` are removed.
+`NodeError`: all possible errors about nodes triggerred by a modification on
+  a graph with data
 -/
-def remove_node {ep : ε → ν × ν} (v : ν)
-    (G : GraphWithData ep) : GraphWithData ep where
-  toGraph := FiniteDirectedGraph.remove_node v G.toGraph
-  data_v := fun ⟨v', h⟩ =>
-    G.data_v ⟨v', by
-      unfold FiniteDirectedGraph.remove_node at h
-      simp at h
-      exact h.2
-    ⟩
-  data_e := fun ⟨e', h⟩ =>
-    G.data_e ⟨e', by
-      unfold FiniteDirectedGraph.remove_node at h
-      simp at h
-      exact h.1
-    ⟩
+inductive NodeError where
+  | graph_node_error (err : Graph.NodeError)
+  | edit_node_missing
 
 /--
-`remove_edge e G`: to remove an edge `e` from a graph `G`.
-If `e` is not in `G`, then nothing happens.
+`EdgeError`: all possible errors about edges triggerred by a modification on
+  a graph with data
 -/
-def remove_edge {ep : ε → ν × ν}
-    (e : ε) (G : GraphWithData ep) : GraphWithData ep where
-  toGraph := FiniteDirectedGraph.remove_edge e G.toGraph
-  data_v := G.data_v
-  data_e := fun ⟨e', h⟩ =>
-    G.data_e ⟨e', by
-      unfold FiniteDirectedGraph.remove_edge at h
-      simp at h
-      exact h.2
-    ⟩
+inductive EdgeError where
+  | graph_edge_error (err : Graph.EdgeError)
+  | edit_edge_missing
 
 /--
-`edit_node v dv G`: to replace the data of node `v` in `G` by `dv`.
-If `v` is not in `G`, then nothing happens.
+`Error`: all possible errors triggerred by a modification on a graph with data
 -/
-def edit_node {ep : ε → ν × ν} (v : ν) (dv : δ ν)
-    (G : GraphWithData ep) : GraphWithData ep where
-  toGraph := G.toGraph
-  data_v := fun ⟨v', h⟩ =>
-    if v' = v then dv
-    else G.data_v ⟨v', h⟩
-  data_e := G.data_e
+inductive Error (ep : ε → ν × ν) where
+  | node_error (v : ν) (err : NodeError)
+  | edge_error (e : ε) (err : EdgeError)
 
 /--
-`edit_edge e de G`: to replace the data of edge `e` in `G` by `de`.
-If `e` is not in `G`, then nothing happens.
+`Info`: the execution info, i.e., whether an error and which error is triggerred
+  by a modification on a graph with data
 -/
-def edit_edge {ep : ε → ν × ν} (e : ε) (de : δ ε)
-    (G : GraphWithData ep) : GraphWithData ep where
-  toGraph := G.toGraph
-  data_v := G.data_v
-  data_e := fun ⟨e', h⟩ =>
-    if e' = e then de
-    else G.data_e ⟨e', h⟩
+inductive Info (ep : ε → ν × ν) where
+  | error (err : Error ep)
+  | ok
 
-inductive GraphWithDataError (ν ε : Type*) where
-  | add_node_existing (v : ν)
-  | add_edge_existing (e : ε)
-  | add_edge_start_point_missing (e : ε)
-  | add_edge_end_point_missing (e : ε)
-  | remove_node_missing (v : ν)
-  | remove_edge_missing (e : ε)
-  | edit_node_missing (v : ν)
-  | edit_edge_missing (e : ε)
+/- embeddings from errors for graphs to errors for graphs with data -/
 
-def GraphWithDataM (ep : ε → ν × ν) :=
-  Except (GraphWithDataError ν ε) (GraphWithData ep)
+instance : Coe Graph.NodeError NodeError where
+  coe := .graph_node_error
+
+instance : Coe Graph.EdgeError EdgeError where
+  coe := .graph_edge_error
+
+instance {ep : ε → ν × ν} : Coe (Graph.Error ep) (Error ep) where
+  coe
+  | .node_error v err => .node_error v err
+  | .edge_error e err => .edge_error e err
+
+instance {ep : ε → ν × ν} : Coe (Graph.Info ep) (Info ep) where
+  coe
+  | .error err => .error err
+  | .ok => .ok
 
 /--
-`add_node v dv G`: to add a node `v` with data `dv` to a graph `G`.
-If `v` is already in `G`, then error `add_node_existing v` will be thrown out.
+`ErrorKind`: declaration of different kinds of errors for graphs with data
 -/
-@[simp]
-def add_node_safe {ep : ε → ν × ν} (v : ν) (dv : δ ν)
-    (G : GraphWithData ep) : GraphWithDataM ep :=
-  if v ∈ G.V
-  then .error $ .add_node_existing v
-  else .ok (G.add_node v dv)
+inductive ErrorKind (ep : ε → ν × ν) where
+  | all
+    | node
+      | add_node_existing
+      | remove_node_missing
+      | edit_node_missing
+    | edge
+      | add_edge_existing
+      | add_edge_points_missing
+        | add_edge_start_point_missing
+        | add_edge_end_point_missing
+      | remove_edge_missing
+      | edit_edge_missing
 
 /--
-`add_edge_safe e de G`: to add an edge `e` with data `de` to a graph `G`.
-If `e` is already in `G`, then error `add_node_existing e` will be thrown out.
-If some of the endpoints of `e` is not in `G`, then error
-  `add_edge_start_point_missing` or `add_edge_end_point_missing` will be thrown
-  out.
+`ErrorKindMatch`: definition of different kinds of errors for graphs with data
 -/
-@[simp]
-def add_edge_safe {ep : ε → ν × ν} (e : ε) (de : δ ε)
-    (G : GraphWithData ep) : GraphWithDataM ep :=
-  if e ∈ G.E then .error $ .add_edge_existing e
-  else if h1 : (ep e).1 ∈ G.V then
-    if h2 : (ep e).2 ∈ G.V then
-      .ok ⟨
-        FiniteDirectedGraph.add_edge_safe e G.toGraph h1 h2,
-        G.data_v,
-        fun ⟨e', _⟩ =>
-          if he' : e' ∈ G.E
-          then G.data_e ⟨e', he'⟩
-          else de
-      ⟩
-    else .error $ .add_edge_end_point_missing e
-  else .error $ .add_edge_start_point_missing e
+def ErrorKindMatch {ep : ε → ν × ν} :
+  ErrorKind ep → Error ep → Bool
+  | .all, _
+    | .node, .node_error _ _
+      | .add_node_existing, .node_error _ $ .graph_node_error .add_node_existing
+      | .remove_node_missing, .node_error _ $ .graph_node_error .remove_node_missing
+      | .edit_node_missing, .node_error _ $ .edit_node_missing
+    | .edge, .edge_error _ _
+      | .add_edge_existing, .edge_error _ $ .graph_edge_error .add_edge_existing
+      | .add_edge_points_missing, .edge_error _ $ .graph_edge_error .add_edge_start_point_missing
+      | .add_edge_points_missing, .edge_error _ $ .graph_edge_error .add_edge_end_point_missing
+        | .add_edge_start_point_missing, .edge_error _ $ .graph_edge_error .add_edge_start_point_missing
+        | .add_edge_end_point_missing, .edge_error _ $ .graph_edge_error .add_edge_end_point_missing
+      | .remove_edge_missing, .edge_error _ $ .graph_edge_error .remove_edge_missing
+      | .edit_edge_missing, .edge_error _ $ .edit_edge_missing
+    => true
+  | _, _ => false
 
+/--
+`BuildM`: the monad for raising errors for modifications on graphs with data
+-/
+abbrev BuildM (ep : ε → ν × ν) :=
+  Except (Error ep)
+
+/--
+`InfoResult`: a type that binds the execution info to the result graph
+-/
+abbrev InfoResult (ep : ε → ν × ν) :=
+  Info ep × GraphWithData ep
+
+/--
+`Result`:
+* the result graph, if the execution is ok, or
+* the error,        if this error is thrown out
+-/
+abbrev Result (ep : ε → ν × ν) :=
+  BuildM ep (GraphWithData ep)
+
+/--
+`Builder`: the execution monad that raising errors while preserving the result
+  graph (with data)
+-/
 abbrev Builder (ep : ε → ν × ν) :=
-  StateT (GraphWithData ep) (Except (GraphWithDataError ν ε))
+  StateT (GraphWithData ep) (BuildM ep)
+
+def add_node_info {ep : ε → ν × ν} (v : ν) (dv : δ ν)
+    (G : GraphWithData ep) : InfoResult ep :=
+  ⟨
+    (Graph.add_node v G.toGraph).1,
+    G.add_node_unsafe v dv
+  ⟩
+
+def add_edge_info {ep : ε → ν × ν} (e : ε) (de : δ ε)
+    (G : GraphWithData ep) : InfoResult ep :=
+  if h : e ∉ G.E ∧ (ep e).1 ∈ G.V ∧ (ep e).2 ∈ G.V
+  then ⟨.ok, G.add_edge_unsafe e de h.2⟩
+  else ⟨(Graph.add_edge e G.toGraph).1, G⟩
+
+def InfoResult.allow {ep : ε → ν × ν} (allow : List (ErrorKind ep)) :
+  InfoResult ep → Result ep
+  | ⟨i, G⟩ => match i with
+    | .ok => .ok G
+    | .error err =>
+      if allow.foldl (fun b err_kind => b || ErrorKindMatch err_kind err) false
+      then .ok G
+      else .error err
+
+def add_node {ep : ε → ν × ν} (v : ν) (dv : δ ν)
+    (G : GraphWithData ep) (allow : List (ErrorKind ep) := [])
+    : Result ep :=
+  (add_node_info v dv G).allow allow
+
+def add_edge {ep : ε → ν × ν} (e : ε) (de : δ ε)
+    (G : GraphWithData ep) (allow : List (ErrorKind ep) := [])
+    : Result ep :=
+  (add_edge_info e de G).allow allow
 
 def Builder.modifyE
     {ep : ε → ν × ν}
-    (f : GraphWithData ep → GraphWithDataM ep) :
+    (f : GraphWithData ep → Result ep) :
     Builder ep PUnit :=
   fun G =>
     match f G with
-    | .ok G'       => .ok (.unit, G')
-    | .error error => .error error
+    | .ok G'     => .ok (.unit, G')
+    | .error err => .error err
 
 def Builder.addNode
     {ep : ε → ν × ν}
-    (v : ν) (dv : δ ν) :
-    Builder ep PUnit :=
-  Builder.modifyE (add_node_safe v dv)
+    (v : ν) (dv : δ ν)
+    (allow : List (ErrorKind ep) := [])
+  : Builder ep PUnit :=
+  Builder.modifyE (fun G => add_node v dv G allow)
 
 def Builder.addEdge
     {ep : ε → ν × ν}
-    (e : ε) (de : δ ε) :
-    Builder ep PUnit :=
-  Builder.modifyE (add_edge_safe e de)
+    (e : ε) (de : δ ε)
+    (allow : List (ErrorKind ep) := [])
+  : Builder ep PUnit :=
+  Builder.modifyE (fun G => add_edge e de G allow)
 
 def Builder.exec
     {ep : ε → ν × ν}
     (p : Builder ep PUnit)
-    (initial : GraphWithData ep) :
-    GraphWithDataM ep :=
-  match p.run initial with
-  | .ok (_, G)     => .ok G
+    (G : GraphWithData ep) :
+    Result ep :=
+  match p.run G with
+  | .ok ⟨_, G'⟩     => .ok G'
   | .error error   => .error error
 
 def Builder.build
     {ep : ε → ν × ν}
     (p : Builder ep PUnit) :
-    GraphWithDataM ep :=
+    Result ep :=
   p.exec GraphWithData.empty
+
+@[simp] theorem Builder.exec_modifyE
+    {ep : ε → ν × ν}
+    (f : GraphWithData ep → Result ep)
+    (G : GraphWithData ep) :
+    Builder.exec (Builder.modifyE f) G = f G := by
+  unfold Builder.exec
+  unfold StateT.run
+  unfold modifyE
+  generalize f G = r
+  cases r <;> rfl
 
 theorem modify_fold
     {ep : ε → ν × ν}
-    (first_step : GraphWithData ep → GraphWithDataM ep)
+    (first_step : GraphWithData ep → Result ep)
     (others : Builder ep PUnit)
-    (initial : GraphWithData ep)
-    :
-    Builder.exec (do
+    (G : GraphWithData ep)
+  : Builder.exec (do
       Builder.modifyE first_step
       others
-    ) initial =
-    match Builder.exec (do Builder.modifyE first_step) initial with
-    | .ok G => Builder.exec (do others) G
-    | .error error => .error error := by
+    ) G =
+    match Builder.exec (do Builder.modifyE first_step) G with
+    | .ok G' => Builder.exec (do others) G'
+    | .error err => .error err := by
   unfold Builder.exec; simp
-  rcases StateT.run (Builder.modifyE first_step) initial with
+  rcases StateT.run (Builder.modifyE first_step) G with
     error | ⟨_, G⟩ <;> rfl
 
+theorem Builder.exec_modifyE_then
+    {ep : ε → ν × ν}
+    (first_step : GraphWithData ep → Result ep)
+    (others : Builder ep PUnit)
+    (G : GraphWithData ep)
+  : Builder.exec (do
+      Builder.modifyE first_step
+      others
+    ) G =
+    match first_step G with
+    | .ok G' => Builder.exec others G'
+    | .error error => .error error := by
+  rw [modify_fold]
+  simp
+
+macro "graph_simp" : tactic =>
+  `(tactic|
+    (simp (config := { decide := true }) [
+      GraphWithData.Builder.addNode,
+      GraphWithData.Builder.addEdge,
+      GraphWithData.Builder.build,
+      GraphWithData.Builder.exec,
+      GraphWithData.Builder.modifyE,
+      StateT.run,
+      GraphWithData.InfoResult.allow,
+      GraphWithData.empty,
+      GraphWithData.discrete,
+      GraphWithData.add_node,
+      GraphWithData.add_edge,
+      GraphWithData.add_node_info,
+      GraphWithData.add_edge_info,
+      GraphWithData.add_node_unsafe,
+      GraphWithData.add_edge_unsafe,
+      Graph.empty,
+      Graph.discrete,
+      Graph.add_node_unsafe,
+      Graph.add_edge_unsafe,
+      Graph.add_node,
+      Graph.add_edge,
+    ] <;> try rfl))
+
 end GraphWithData
-
-
-
-
-
 
 namespace test
 
 open GraphWithData
+
+open Data
 
 namespace Shape
 
@@ -479,87 +538,52 @@ def EdgeData.mk' (content : String) (dv1 dv2 : NodeDataType) : EdgeDataType wher
 
 def graphExample : GraphWithData ep :=
   (((empty
-  ).add_node
+  ).add_node_unsafe
     1 NodeDataLxy
-  ).add_node
+  ).add_node_unsafe
     2 NodeDataDzn
-  ).add_edge
+  ).add_edge_unsafe
     (1,2)
     (EdgeData.mk' "" NodeDataLxy NodeDataDzn)
-    NodeDataDefault
-/--
-`add_edge_safe e de G`: to add an edge `e` with data `de` to a graph `G`.
-If `e` is already in `G`, then error `add_node_existing e` will be thrown out.
-If some of the endpoints of `e` is not in `G`, then error
-  `add_edge_start_point_missing` or `add_edge_end_point_missing` will be thrown
-  out.
--/
-@[simp]
-def add_edge_safe' (e : Nat × Nat) (contents : String)
-    (G : GraphWithData ep) : GraphWithDataM ep :=
-  if e ∈ G.E then .error $ .add_edge_existing e
-  else if h1 : (ep e).1 ∈ G.V then
-    if h2 : (ep e).2 ∈ G.V then
-      .ok ⟨
-        FiniteDirectedGraph.add_edge_safe e G.toGraph h1 h2,
-        G.data_v,
-        fun ⟨e', _⟩ =>
-          if he' : e' ∈ G.E
-          then G.data_e ⟨e', he'⟩
-          else ⟨contents, ⟨
-              (G.data_v ⟨(ep e).1, h1⟩).format.pos,
-              (G.data_v ⟨(ep e).2, h2⟩).format.pos
-            ⟩⟩
-      ⟩
-    else .error $ .add_edge_end_point_missing e
-  else .error $ .add_edge_start_point_missing e
+    (by graph_simp)
 
-def graphExampleExcept : GraphWithDataM ep := do
-  let G0 ← (pure empty)
-  let G1 ← G0.add_node_safe 1 NodeDataLxy
-  let G2 ← G1.add_node_safe 2 NodeDataDzn
-  let G3 ← add_edge_safe' (1,2) "" G2
-  pure G3
+def add_edge_info' (e : Nat × Nat) (contents : String)
+    (G : GraphWithData ep) : InfoResult ep :=
+  if h : e ∉ G.E ∧ (ep e).1 ∈ G.V ∧ (ep e).2 ∈ G.V
+  then ⟨.ok,
+    Graph.add_edge_unsafe e G.toGraph h.2,
+    G.data_v,
+    fun ⟨e', _⟩ =>
+      if he' : e' ∈ G.E
+      then G.data_e ⟨e', he'⟩
+      else ⟨contents, ⟨
+          (G.data_v ⟨(ep e).1, h.2.1⟩).format.pos,
+          (G.data_v ⟨(ep e).2, h.2.2⟩).format.pos
+        ⟩⟩
+  ⟩
+  else ⟨(Graph.add_edge e G.toGraph).1, G⟩
 
-@[simp]
-def add_edge_builder'
-    (e : Nat × Nat)
-    (contents : String) :
-    GraphWithData.Builder ep Unit :=
-  GraphWithData.Builder.modifyE
-    (add_edge_safe' e contents)
+def add_edge' (e : Nat × Nat) (contents : String)
+    (G : GraphWithData ep) : Result ep :=
+  (add_edge_info' e contents G).allow []
 
-def graphExampleM : GraphWithDataM ep :=
-  GraphWithData.Builder.build do
-    GraphWithData.Builder.addNode 1 NodeDataLxy
-    GraphWithData.Builder.addNode 2 NodeDataDzn
-    add_edge_builder' (1, 2) ""
+def Builder.addEdge'
+    (e : Nat × Nat) (contents : String)
+  : Builder ep PUnit :=
+  Builder.modifyE (fun G => add_edge' e contents G)
 
-theorem except_ok_fold (x : α) (m : α → @Except β α)
-  : (do
-      let y ← Except.ok x
-      m y)
-    = m x :=
-  rfl
-
-example : graphExampleExcept = .ok graphExample := by
-  unfold graphExampleExcept graphExample
-  simp [except_ok_fold]
-  rfl
+def graphExampleM : Result ep :=
+  Builder.build do
+    Builder.addNode 1 NodeDataLxy
+    Builder.addNode 2 NodeDataDzn
+    Builder.addEdge' (1, 2) ""
 
 example : graphExampleM = .ok graphExample := by
   unfold graphExampleM graphExample
-  simp [
-    add_edge_builder',
-    Builder.addNode,
-    Builder.build
-  ]
-  simp only [modify_fold]
-  simp (config := { decide := true}) [
-      StateT.run,
-      GraphWithData.Builder.exec,
-      GraphWithData.Builder.modifyE,
-    ]
-  rfl
+  unfold Builder.addEdge'
+  unfold Builder.addNode
+  unfold Builder.build
+  simp [Builder.exec_modifyE_then]
+  graph_simp
 
 end test
