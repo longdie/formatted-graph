@@ -2,6 +2,9 @@ import FormattedGraph.Graph
 
 namespace test
 
+abbrev name_zt := "朱韬"
+abbrev name_dzn := "董子能"
+
 open GraphWithData
 
 open Data
@@ -47,11 +50,11 @@ def NodeDataDefault : NodeDataType where
   format := ⟨.mk 1, ⟨0, 0⟩⟩
 
 def NodeDataZt : NodeDataType where
-  content := "Zhu tao"
+  content := name_zt
   format := ⟨.mk 10, ⟨1, 0⟩⟩
 
 def NodeDataDzn : NodeDataType where
-  content := "Dong Zineng"
+  content := name_dzn
   format := ⟨.mk 10, ⟨-1, 0⟩⟩
 
 def EdgeData.mk' (content : String) (dv1 dv2 : NodeDataType) : EdgeDataType where
