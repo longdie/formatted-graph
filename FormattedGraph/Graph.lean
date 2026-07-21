@@ -489,26 +489,56 @@ theorem Builder.modify_fold
   rcases StateT.run first_step G with
     error | ⟨_, G⟩ <;> rfl
 
--- /-- Simplify concrete graph and builder computations by unfolding operations. -/
-macro "naive_graph_simp" : tactic =>
-  `(tactic|
-    (simp (config := { decide := true }) [
+open Lean
+open Parser.Tactic
+
+theorem thm : 1 = 1 := by simp
+
+syntax "graph_head_simp" simpArgs : tactic
+macro_rules
+  | `(tactic| graph_head_simp [$rules,*]) =>
+    let rules := rules.getElems
+    `(tactic| simp [
       GraphWithData.InfoResult.allow,
+
       GraphWithData.empty,
       GraphWithData.discrete,
+
       GraphWithData.add_node,
       GraphWithData.add_edge,
+
       GraphWithData.add_node_info,
       GraphWithData.add_edge_info,
+
       GraphWithData.add_node_unsafe,
       GraphWithData.add_edge_unsafe,
+
       Graph.empty,
       Graph.discrete,
-      Graph.add_node_unsafe,
-      Graph.add_edge_unsafe,
+
       Graph.add_node,
       Graph.add_edge,
-    ] <;> try rfl))
+
+      Graph.add_node_unsafe,
+      Graph.add_edge_unsafe,
+
+      $rules,*
+    ])
+
+macro "graph_step" : tactic =>
+  `(tactic| ((try rw [Builder.modify_fold]);(try rw [Builder.exec_modifyE])))
+
+syntax "graph_step_simp" simpArgs : tactic
+macro_rules
+  | `(tactic| graph_step_simp [$rules,*]) =>
+    let rules := rules.getElems
+    `(tactic| ((try unfold Builder.build);graph_step;graph_head_simp [$rules,*]))
+
+syntax "graph_simp" simpArgs : tactic
+macro_rules
+  | `(tactic| graph_simp [$rules,*]) =>
+    let rules := rules.getElems
+    `(tactic| (repeat graph_step_simp [$rules,*]))
 
 end GraphWithData
 
@@ -558,8 +588,8 @@ def NodeDataDefault : NodeDataType where
   content := ""
   format := ⟨.mk 1, ⟨0, 0⟩⟩
 
-def NodeDataLxy : NodeDataType where
-  content := "Liu Xiaoyang"
+def NodeDataZt : NodeDataType where
+  content := "Zhu tao"
   format := ⟨.mk 10, ⟨1, 0⟩⟩
 
 def NodeDataDzn : NodeDataType where
@@ -573,13 +603,13 @@ def EdgeData.mk' (content : String) (dv1 dv2 : NodeDataType) : EdgeDataType wher
 def graphExample : GraphWithData ep :=
   (((empty
   ).add_node_unsafe
-    1 NodeDataLxy
+    1 NodeDataZt
   ).add_node_unsafe
     2 NodeDataDzn
   ).add_edge_unsafe
     (1,2)
-    (EdgeData.mk' "" NodeDataLxy NodeDataDzn)
-    (by naive_graph_simp)
+    (EdgeData.mk' "" NodeDataZt NodeDataDzn)
+    (by graph_head_simp [])
 
 def add_edge_info' (e : Nat × Nat) (contents : String)
     (G : GraphWithData ep) : InfoResult ep :=
@@ -608,82 +638,43 @@ abbrev Builder.addEdge'
 
 def graphExampleM : Result ep :=
   Builder.build do
-    Builder.addNode 1 NodeDataLxy
+    Builder.addNode 1 NodeDataZt
     Builder.addNode 2 NodeDataDzn
     Builder.addEdge' (1, 2) ""
 
-macro "graph_head_simp" : tactic =>
-  `(tactic|
-      simp (config := { decide := true }) [
-        add_edge',
-        add_edge_info',
-
-        GraphWithData.InfoResult.allow,
-
-        GraphWithData.empty,
-        GraphWithData.discrete,
-
-        GraphWithData.add_node,
-        GraphWithData.add_edge,
-
-        GraphWithData.add_node_info,
-        GraphWithData.add_edge_info,
-
-        GraphWithData.add_node_unsafe,
-        GraphWithData.add_edge_unsafe,
-
-        Graph.empty,
-        Graph.discrete,
-
-        Graph.add_node,
-        Graph.add_edge,
-
-        Graph.add_node_unsafe,
-        Graph.add_edge_unsafe
-      ])
-
-macro "graph_step" : tactic =>
-  `(tactic| ((try rw [Builder.modify_fold]);(try rw [Builder.exec_modifyE])))
-
-macro "graph_step_simp" : tactic =>
-  `(tactic| ((try unfold Builder.build);graph_step;graph_head_simp))
-
-macro "graph_simp" : tactic =>
-  `(tactic| repeat graph_step_simp)
-
-example : graphExampleM = .ok graphExample := by
+#time example : graphExampleM = .ok graphExample := by
   unfold graphExampleM graphExample
 
   unfold Builder.build
 
   rw [Builder.modify_fold];
   rw [Builder.exec_modifyE];
-  graph_head_simp
+  graph_head_simp [add_edge', add_edge_info']
 
   rw [Builder.modify_fold];
   rw [Builder.exec_modifyE];
-  graph_head_simp
+  graph_head_simp [add_edge', add_edge_info']
 
   rw [Builder.exec_modifyE];
-  graph_head_simp
+  graph_head_simp [add_edge', add_edge_info']
 
   rfl
 
-example : graphExampleM = .ok graphExample := by
+#time example : graphExampleM = .ok graphExample := by
   unfold graphExampleM graphExample
 
   unfold Builder.build
   repeat(
     try rw [Builder.modify_fold];
     try rw [Builder.exec_modifyE];
-    graph_head_simp
+    graph_head_simp [add_edge', add_edge_info']
   )
 
   rfl
 
-example : graphExampleM = .ok graphExample := by
+#time example : graphExampleM = .ok graphExample := by
   unfold graphExampleM graphExample
-  graph_simp
+  graph_simp [add_edge', add_edge_info']
   rfl
 
 end test
